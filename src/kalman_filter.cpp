@@ -1,8 +1,10 @@
 #include "kalman_filter.h"
 #include <cmath>
+#include <vector>
 
 using Eigen::MatrixXd;
 using Eigen::VectorXd;
+using namespace::std;
 
 /* 
  * Please note that the Eigen library does not initialize 
@@ -33,7 +35,6 @@ void KalmanFilter::Predict() {
   x_ = F_ * x_;
   MatrixXd Ft = F_.transpose();
   P_ = F_ * P_ * Ft + Q_;
-
   
 }
 
@@ -58,6 +59,7 @@ void KalmanFilter::Update(const VectorXd &z) {
   
 }
 
+
 void KalmanFilter::UpdateEKF(const VectorXd &z) {
   /**
    * TODO: update the state by using Extended Kalman Filter equations
@@ -79,8 +81,11 @@ void KalmanFilter::UpdateEKF(const VectorXd &z) {
     
     
   VectorXd y = z - h_x;
+  
+  //y(1) = normalize_angle(y(1));
+  
   MatrixXd Ht = Hj_radar_.transpose();
-  MatrixXd S = Hj_radar_ * P_ * Ht + R_laser_;
+  MatrixXd S = Hj_radar_ * P_ * Ht + R_radar_;
   MatrixXd Si = S.inverse();
   MatrixXd PHt = P_ * Ht;
   MatrixXd K = PHt * Si;
@@ -90,6 +95,41 @@ void KalmanFilter::UpdateEKF(const VectorXd &z) {
   long x_size = x_.size();
   MatrixXd I = MatrixXd::Identity(x_size, x_size);
   P_ = (I - K * Hj_radar_) * P_;
+ 
+}
 
-  
+
+Eigen::VectorXd KalmanFilter::normalize_angle(const Eigen::VectorXd &angle){
+   
+    /*
+	vector<float> theta;
+	theta.resize(angle.size());
+	VectorXd::Map(&theta[0], angle.size()) = angle;
+    */
+    /**
+    * Code to convert VectorXd to vector
+    * VectorXd v1;
+	* v1 = ...;
+	* vector<double> v2;
+	* v2.resize(v1.size());
+	VectorXd::Map(&v2[0], v1.size()) = v1;
+    */
+
+    vector<int> theta(angle.data(), angle.data() + angle.size());
+    
+    float pi = M_PI;
+	float x = theta[0];
+    VectorXd norm_theta (1);
+    
+    if (x>0){
+    while( !(x>=-pi && x<=pi) ) { x-= 2*pi ; }
+    norm_theta << x;
+    return norm_theta;
+    }
+    
+    else{
+    while( !(x>=-pi && x<=pi) ) { x+= 2*pi ; }
+    norm_theta << x;
+    return norm_theta;    
+    }
 }

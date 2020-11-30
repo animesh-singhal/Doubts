@@ -5,6 +5,7 @@
 
 using Eigen::MatrixXd;
 using Eigen::VectorXd;
+using namespace std;
 
 class KalmanFilter {
  public:
@@ -49,6 +50,12 @@ class KalmanFilter {
    */
   void UpdateEKF(const Eigen::VectorXd &z);
 
+  /**
+   * Returns an normalized value of theta between -pi and pi
+   * @param angle which we want to normalise. Input wont be a simple number, 
+   				  it would be a single element vector
+   */  
+  Eigen::VectorXd normalize_angle(const Eigen::VectorXd &angle);
   
   //State vector, covariance matrix
   VectorXd x_;         //state vector
