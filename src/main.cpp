@@ -66,7 +66,7 @@ int main() {
           
           // j[1] is the data JSON object
           if (!pf.initialized()) {
-            cout<<"ABCD";
+            
             // Sense noisy position data from the simulator
             double sense_x = std::stod(j[1]["sense_x"].get<string>());
             double sense_y = std::stod(j[1]["sense_y"].get<string>());
@@ -81,7 +81,7 @@ int main() {
 
             pf.prediction(delta_t, sigma_pos, previous_velocity, previous_yawrate);
           }
-		  cout<<"PQRS";
+		  
           // receive noisy observation data from the simulator
           // sense_observations in JSON format 
           //   [{obs_x,obs_y},{obs_x,obs_y},...{obs_x,obs_y}] 

@@ -25,6 +25,7 @@ using std::string;
 using std::vector;
 using std::normal_distribution;
 using std::cout;
+using std::endl;
 
 
 void ParticleFilter::init(double x, double y, double theta, double std[]) {
@@ -37,7 +38,7 @@ void ParticleFilter::init(double x, double y, double theta, double std[]) {
    *   (and others in this file).
    */
   num_particles = 100;  // TODO: Set the number of particles
-  cout<<"hi";
+  
 
   // Setting GPS provided state of the car
   // These will act as the mu for the gaussian distribution in which particles will fall
@@ -116,14 +117,37 @@ void ParticleFilter::prediction(double delta_t, double std_pos[],
     theta_i = particles[i].theta;
    
     // Finding the value of theta_f by introducing uncertainity 
-    theta_f = theta_i + (yaw_rate*delta_t);  // Ideal case value
-    normal_distribution<double> dist_theta(theta_f, std_theta);   // Creating gaussian 
-    theta_f = fmod( dist_theta(gen) , (2*M_PI) );   // Introducing uncertainity in theta
+    //theta_f = theta_i + (yaw_rate*delta_t);  // Ideal case value
+    //normal_distribution<double> dist_theta(theta_f, std_theta);   // Creating gaussian 
+    //theta_f = fmod( dist_theta(gen) , (2*M_PI) );   // Introducing uncertainity in theta
     
-    // Finding values of x and y by applying formula
+    
+    if(fabs(yaw_rate)<0.0001){
+    	theta_f = theta_i;
+    	x_f = x_i + ( velocity * delta_t* cos(theta_f) );
+        y_f = y_i + ( velocity * delta_t* sin(theta_f) );      
+	}
+    else{
+
+      // Finding the value of theta_f by introducing uncertainity 
+      theta_f = theta_i + (yaw_rate*delta_t);  // Ideal case value
+      normal_distribution<double> dist_theta(theta_f, std_theta);   // Creating gaussian 
+      theta_f = fmod( dist_theta(gen) , (2*M_PI) );   // Introducing uncertainity in theta
+
+      // Finding values of x and y by applying formula
+      x_f = x_i + (velocity/yaw_rate)*( sin(theta_f) - sin(theta_i) );
+      y_f = y_i + (velocity/yaw_rate)*( cos(theta_i) - cos(theta_f) );
+    }
+    
+    /*
+    if(fabs(yaw_rate)<0.0001){
+    	yaw_rate = 0.0001;
+	}
+
     x_f = x_i + (velocity/yaw_rate)*( sin(theta_f) - sin(theta_i) );
     y_f = y_i + (velocity/yaw_rate)*( cos(theta_i) - cos(theta_f) );
-    
+    */
+        
     normal_distribution<double> dist_x(x_f, std_x);   // Creating gaussian for x
     normal_distribution<double> dist_y(y_f, std_y);   // Creating gaussian for y
 
@@ -139,8 +163,8 @@ void ParticleFilter::prediction(double delta_t, double std_pos[],
 
 }
 
-void ParticleFilter::dataAssociation(vector<LandmarkObs>& transformed_obs, 
-                                     vector<LandmarkObs> map_landmark) {
+void ParticleFilter::dataAssociation(vector<LandmarkObs> transformed_obs, 
+                                     vector<LandmarkObs>& map_landmark) {
   /**
    * TODO: Find the landmark that is closest to each 
    *   transformed_observation and assign the observed measurement to this 
@@ -149,43 +173,53 @@ void ParticleFilter::dataAssociation(vector<LandmarkObs>& transformed_obs,
    */
 
   //looping over each transformed sensor observation
-  for(unsigned int i =0; i< transformed_obs.size(); i++){
-    double x_obs = transformed_obs[i].x;
-    double y_obs = transformed_obs[i].y;
-    
+  //cout<<"# of landmarks:"<<map_landmark.size()<<endl;
+  //cout<<"# of sensor readings:"<<transformed_obs.size()<<endl;
+
+  for(unsigned int i =0; i< map_landmark.size(); i++){
+
+    double x_lm = map_landmark[i].x;  
+    double y_lm = map_landmark[i].y;      
+      
     
     //We'll now make an initial assignment to distance variable 
     // This is basically the Initial assignment of a landmark to our observation: 
     //  Then we'll optimize this in the loop 
     
-    int id_lm = map_landmark[0].id;   // Extracting landmark's id
-    transformed_obs[i].id = id_lm;     // Assigning it to transformed_observation
+    int id_obs = transformed_obs[0].id;   // Extracting transformed_observation's id
+    map_landmark[i].id = id_obs;     // Assigning it to current landmark temporarily
     
-    double x_lm = map_landmark[0].x;  
-    double y_lm = map_landmark[0].y;      
-         
+    double x_obs = transformed_obs[0].x;
+	double y_obs = transformed_obs[0].y;
+  
+       
     double dx = x_obs - x_lm;
     double dy = y_obs - y_lm;
     double distance_init = sqrt( dx*dx + dy*dy );
 
     //Now, looping over remainig landmarks for a precise allotment. Starting loop from 2nd element
-    for(unsigned int j =1; j< map_landmark.size(); j++){
+    for(unsigned int j =1; j< transformed_obs.size(); j++){
       
       //We'll reuse the above defined variables
-      id_lm = map_landmark[j].id;
-      x_lm = map_landmark[j].x;
-      y_lm = map_landmark[j].y;      
+      id_obs = transformed_obs[j].id;
+      x_obs = transformed_obs[j].x;
+      y_obs = transformed_obs[j].y;      
             
       dx = x_obs - x_lm;
       dy = y_obs - y_lm;
       double distance_new = sqrt( dx*dx + dy*dy );
+      //cout<<"Value of Distance: \t\t\t"<<distance_new<<endl;
+      //cout<<"Sensor: ("<<x_obs<<", "<<y_obs<<")\nLandmark: ("<<x_lm<<", "<<y_lm<<")\n";
+
       
-      //If the latest landmark in consideration is closer to the sensor reading, update the id 
+      //If the latest sensor reading in consideration is closer to the landmark, update the id 
       if( distance_new < distance_init ){
-      	transformed_obs[i].id = id_lm;   // Updating the id
+      	map_landmark[i].id = id_obs;   // Updating the id
         distance_init = distance_new;    // Updating the distance variable 
       }
     }
+    //cout<<"Final Distance: "<<distance_init<<endl<<endl;
+    
   }
 
 }
@@ -211,6 +245,8 @@ void ParticleFilter::updateWeights(double sensor_range, double std_landmark[],
 
   //For each particle, convert all the observations to map frame 
   for (unsigned int i =0; i<particles.size(); i++){
+    cout<<"\n\nParticle #"<<i<<endl; 
+    
     
     //Creating a copy of sensor measuremens wrt the particle
     vector<LandmarkObs> observations = sensor_observations;
@@ -244,7 +280,7 @@ void ParticleFilter::updateWeights(double sensor_range, double std_landmark[],
     }
 
     //Accessing elements of map landmarks. For each particle, we select only the relevent landmarks which are in range of sensor 
-    
+    //cout<<"Transformation done"<<endl;
     vector<LandmarkObs> relevant_lm;
     
     int n = map_landmarks.landmark_list.size();
@@ -266,33 +302,45 @@ void ParticleFilter::updateWeights(double sensor_range, double std_landmark[],
        relevant_lm.push_back(valid_lm);
       }
      }
-
+    
+    if (relevant_lm.size() == 0){
+     particles[i].weight = 0;
+       continue;
+    }
+    
     //Associate each transformed sensor observation to the nearest landmark (within range)
     dataAssociation(observations, relevant_lm);
-
+    //cout<<"Association successful"<<endl;
+    
+    particles[i].weight= 1;  //Re-initialise the weight for this iteration for the current particle
+    
     // Loop over all sensor observations
-    for(unsigned int i =0; i<observations.size(); i++){
-      double x_obs = observations[i].x;
-      double y_obs = observations[i].y;
-      double id_obs = observations[i].id;
+    for(unsigned int k =0; k<relevant_lm.size(); k++){
+      double x_lm = relevant_lm[k].x;
+      double y_lm = relevant_lm[k].y;
+      double id_lm = relevant_lm[k].id;
       
       //getting the matching landmark for this sensor observation
       int j =0;
-      while(relevant_lm[j].id != id_obs){
+      while(observations[j].id != id_lm){
       	j++;  
       }
-      double x_lm = relevant_lm[j].x;
-      double y_lm = relevant_lm[j].y;  
+      double x_obs = observations[j].x;
+      double y_obs = observations[j].y;  
         
       float sig_x =  std_landmark[0];  
       float sig_y = std_landmark[1];
       
-      particles[i].weight*= multiv_prob(sig_x, sig_y, x_obs, y_obs, x_lm, y_lm);
+      cout<<k<<" th association probability: "<<multiv_prob(sig_x, sig_y, x_obs, y_obs, x_lm, y_lm)<<endl;
+      cout<<"Sensor: ("<<x_obs<<", "<<y_obs<<")\nLandmark: ("<<x_lm<<", "<<y_lm<<")\n\n";
+
+      
+      particles[i].weight*= multiv_prob(sig_x, sig_y, x_obs, y_obs, x_lm, y_lm);  
       // this update is within a for loop which loops over all the sensor observations
     } 
-    
+    cout<<"Final Particle weight: "<<particles[i].weight<<endl;
   }  
-  
+ cout<<endl<<endl; 
 }
 
 
@@ -335,9 +383,15 @@ void ParticleFilter::resample() {
 
   vector<float> weights;
   
+  //float sum=0;
   for (unsigned int i =0; i< particles.size(); i++) {  
+    //cout<<"Weights in Resample:"<<particles[i].weight<<endl;
     weights.push_back( particles[i].weight );
+    //sum += particles[i].weight;
   }
+  
+  
+  
   
   std::random_device rd;
   std::mt19937 gen(rd());
@@ -345,8 +399,7 @@ void ParticleFilter::resample() {
   
   for (unsigned int i =0; i< particles.size(); i++){
   	int num = d(gen);
-    new_particles[i] = particles[num];
-    new_particles[i].weight = 1;    //Resetting weight for the next iteration
+    new_particles.push_back(particles[num]);
   }
 
   particles = new_particles; 
@@ -390,3 +443,83 @@ string ParticleFilter::getSenseCoord(Particle best, string coord) {
   s = s.substr(0, s.length()-1);  // get rid of the trailing space
   return s;
 }
+
+
+
+/*
+void ParticleFilter::dataAssociation(vector<LandmarkObs>& transformed_obs, 
+                                     vector<LandmarkObs> map_landmark) {
+
+
+  for(unsigned int i =0; i< transformed_obs.size(); i++){
+    double x_obs = transformed_obs[i].x;
+    double y_obs = transformed_obs[i].y;
+    
+    
+    //We'll now make an initial assignment to distance variable 
+    // This is basically the Initial assignment of a landmark to our observation: 
+    //  Then we'll optimize this in the loop 
+    
+    int id_lm = map_landmark[0].id;   // Extracting landmark's id
+    transformed_obs[i].id = id_lm;     // Assigning it to transformed_observation
+    
+    double x_lm = map_landmark[0].x;  
+    double y_lm = map_landmark[0].y;      
+         
+    double dx = x_obs - x_lm;
+    double dy = y_obs - y_lm;
+    double distance_init = sqrt( dx*dx + dy*dy );
+
+    //Now, looping over remainig landmarks for a precise allotment. Starting loop from 2nd element
+    for(unsigned int j =1; j< map_landmark.size(); j++){
+      
+      //We'll reuse the above defined variables
+      id_lm = map_landmark[j].id;
+      x_lm = map_landmark[j].x;
+      y_lm = map_landmark[j].y;      
+            
+      dx = x_obs - x_lm;
+      dy = y_obs - y_lm;
+      double distance_new = sqrt( dx*dx + dy*dy );
+      
+      //If the latest landmark in consideration is closer to the sensor reading, update the id 
+      if( distance_new < distance_init ){
+      	transformed_obs[i].id = id_lm;   // Updating the id
+        distance_init = distance_new;    // Updating the distance variable 
+      }
+    }
+    
+    
+  }
+}
+*/
+
+
+
+/*
+
+    // Loop over all sensor observations
+    for(unsigned int k =0; k<observations.size(); k++){
+      double x_obs = observations[k].x;
+      double y_obs = observations[k].y;
+      double id_obs = observations[k].id;
+      
+      //getting the matching landmark for this sensor observation
+      int j =0;
+      while(relevant_lm[j].id != id_obs){
+      	j++;  
+      }
+      double x_lm = relevant_lm[j].x;
+      double y_lm = relevant_lm[j].y;  
+        
+      float sig_x =  std_landmark[0];  
+      float sig_y = std_landmark[1];
+      
+      cout<<k<<" th association probability: "<<multiv_prob(sig_x, sig_y, x_obs, y_obs, x_lm, y_lm)<<endl;
+      //cout<<"Multi_v_probab"<<multiv_prob(sig_x, sig_y, x_obs, y_obs, x_lm, y_lm)<<endl;
+      particles[i].weight*= multiv_prob(sig_x, sig_y, x_obs, y_obs, x_lm, y_lm);
+      // this update is within a for loop which loops over all the sensor observations
+    } 
+
+
+*/
